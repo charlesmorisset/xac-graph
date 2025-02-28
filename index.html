@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explainable Access Control Graph</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+        }
+
+        .graph-container {
+            flex: 1;
+            border-right: 1px solid #ccc;
+            position: relative;
+            padding: 20px;
+        }
+
+        .details-container {
+            flex: 1;
+            padding: 20px;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .link {
+            stroke: #aaa;
+            stroke-width: 2px;
+            marker-end: url(#arrow);
+        }
+
+        .node.decision {
+            fill: green;
+        }
+
+        .node.explanation {
+            fill: blue;
+        }
+
+        .node {
+            stroke: white;
+            stroke-width: 2px;
+            cursor: pointer;
+        }
+
+        .form-container {
+            padding: 20px;
+            border-top: 1px solid #ccc;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 5px;
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="graph-container">
+            <h2>Explanation Graph</h2>
+            <svg>
+                <defs>
+                    <marker id="arrow" markerWidth="10" markerHeight="10" refX="13" refY="3" orient="auto" markerUnits="strokeWidth">
+                        <path d="M0,0 L0,6 L9,3 z" />
+                      </marker>
+                </defs>
+            </svg>
+        </div>
+        <div class="details-container">
+            <h2>Node Details</h2>
+            <p id="node-description">Click on a node to see details</p>
+        </div>
+    </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            updateTable();
+        });
+
+        function updateTable() {
+            const tableBody = document.getElementById("data-table");
+            tableBody.innerHTML = "";
+            data.forEach(node => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${node.id}</td>
+                    <td contenteditable="true" onblur="updateNode(${node.id}, 'description', this.innerText)">${node.description}</td>
+                    <td contenteditable="true" onblur="updateNode(${node.id}, 'type', this.innerText)">${node.type}</td>
+                    <td contenteditable="true" onblur="updateNode(${node.id}, 'related', this.innerText.split(',').map(Number))">${node.related.join(", ")}</td>
+                    <td><button onclick="removeRow(${node.id})">Remove</button></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function updateNode(id, field, value) {
+            const node = data.find(node => node.id === id);
+            if (node) {
+                node[field] = value;
+                updateGraph();
+            }
+        }
+    </script>
+    <div class="form-container">
+        <h2>Manage Explanation Graph</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Related IDs</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="data-table"></tbody>
+        </table>
+        <button onclick="addRow()">Add Row</button>
+        <button id="download-json">Download JSON</button>
+        <input type="file" id="upload-json" accept=".json">
+    </div>
+    <script>
+        let data = [
+            { id: 1, description: "Node 1", type: "decision", related: [2, 3] },
+            { id: 2, description: "Node 2", type: "explanation", related: [3] },
+            { id: 3, description: "Node 3", type: "decision", related: [] }
+        ];
+
+        document.getElementById("download-json").addEventListener("click", function (event) {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+            a.setAttribute("download", "data.json");
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        document.getElementById("upload-json").addEventListener("change", function (event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                data = JSON.parse(e.target.result);
+                updateTable();
+                updateGraph();
+            };
+            reader.readAsText(file);
+        });
+
+        function addRow() {
+            const newRow = { id: data.length + 1, description: `Node ${data.length + 1}`, type: "decision", related: [] };
+            data.push(newRow);
+            updateTable();
+            updateGraph();
+        }
+
+        function removeRow(id) {
+            data = data.filter(node => node.id !== id);
+            updateTable();
+            updateGraph();
+        }
+
+
+        function updateGraph() {
+            const nodes = data.map(d => ({ id: d.id, description: d.description, type: d.type }));
+            const links = data.flatMap(d => d.related.map(target => ({ source: d.id, target })));
+
+            const width = document.querySelector(".graph-container").clientWidth;
+            const height = document.querySelector(".graph-container").clientHeight;
+            const svg = d3.select("svg");
+            // svg.selectAll("*").remove();
+
+            const markerBoxWidth = 20;
+            const markerBoxHeight = 20;
+            const refX = markerBoxWidth / 2;
+            const refY = markerBoxHeight / 2;
+            const markerWidth = markerBoxWidth / 1;
+            const markerHeight = markerBoxHeight / 1;
+            const arrowPoints = [[0, 0], [0, 20], [20, 10]];
+
+  
+
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-300))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("collide", d3.forceCollide(30));
+
+            const link = svg.selectAll(".link")
+                .data(links)
+                .enter().append("line")
+                .attr("class", "link")
+                .attr("marker-end", "url(#arrow)");
+
+            const node = svg.selectAll(".node")
+                .data(nodes)
+                .enter().append("circle")
+                .attr("class", d => `node ${d.type}`)
+                .attr("r", 10)
+                .call(d3.drag()
+                    .on("start", dragStart)
+                    .on("drag", dragged)
+                    .on("end", dragEnd))
+                .on("click", (event, d) => {
+                    document.getElementById("node-description").innerText = d.description;
+                });
+
+            const label = svg.selectAll("text")
+                .data(nodes)
+                .enter().append("text")
+                .attr("dy", -15)
+                .attr("text-anchor", "middle")
+                .text(d => d.id);
+
+            simulation.on("tick", () => {
+                link.attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                node.attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+
+                label.attr("x", d => d.x)
+                    .attr("y", d => d.y);
+            });
+
+            function dragStart(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragEnd(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+
+        updateGraph();
+    </script>
+    <script>
+        function addExplanationToData(id) {
+            const explanation = explanations.find(exp => exp.id === id);
+            if (explanation) {
+                const newNode = { id: data.length + 1, description: explanation.explanation, type: "explanation", related: [] };
+                data.push(newNode);
+                updateTable();
+                updateGraph();
+            }
+        }
+    </script>
+    <div class="form-container"></div>
+        <h2>Manage Explanations</h2>
+        <input type="text" id="search-input" placeholder="Search explanations..." oninput="searchExplanations()">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Explanation</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="explanation-table"></tbody>
+        </table>
+        <button onclick="addExplanation()">Add Explanation</button>
+        <button id="download-explanations">Download Explanations JSON</button>
+        <input type="file" id="upload-explanations" accept=".json">
+    </div>
+    <script>
+        let explanations = [
+            { id: 1, explanation: "Explanation 1" },
+            { id: 2, explanation: "Explanation 2" }
+        ];
+
+        function updateExplanationTable(filteredExplanations = explanations) {
+            const tableBody = document.getElementById("explanation-table");
+            tableBody.innerHTML = "";
+            filteredExplanations.forEach(exp => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${exp.id}</td>
+                    <td contenteditable="true" onblur="updateExplanation(${exp.id}, this.innerText)">${exp.explanation}</td>
+                    <td><button onclick="addExplanationToData(${exp.id})">Add to Graph</button></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function addExplanation() {
+            const newExplanation = { id: explanations.length + 1, explanation: `Explanation ${explanations.length + 1}` };
+            explanations.push(newExplanation);
+            updateExplanationTable();
+        }
+
+        function removeExplanation(id) {
+            explanations = explanations.filter(exp => exp.id !== id);
+            updateExplanationTable();
+        }
+
+        function updateExplanation(id, value) {
+            const exp = explanations.find(exp => exp.id === id);
+            if (exp) {
+                exp.explanation = value;
+            }
+        }
+
+        function searchExplanations() {
+            const keyword = document.getElementById("search-input").value.toLowerCase();
+            const filteredExplanations = explanations.filter(exp => exp.explanation.toLowerCase().includes(keyword));
+            updateExplanationTable(filteredExplanations);
+        }
+
+        document.getElementById("download-explanations").addEventListener("click", function () {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(explanations, null, 2)], { type: "application/json" }));
+            a.setAttribute("download", "explanations.json");
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        document.getElementById("upload-explanations").addEventListener("change", function (event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                explanations = JSON.parse(e.target.result);
+                updateExplanationTable();
+            };
+            reader.readAsText(file);
+        });
+
+        updateExplanationTable();
+    </script>
+
+</body>
+
+</html>

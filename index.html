@@ -105,16 +105,17 @@
                 const row = document.createElement("tr");
                 row.innerHTML = `
                     <td>${node.id}</td>
-                    <td contenteditable="true" onblur="updateNode(${node.id}, 'description', this.innerText)">${node.description}</td>
-                    <td contenteditable="true" onblur="updateNode(${node.id}, 'type', this.innerText)">${node.type}</td>
-                    <td contenteditable="true" onblur="updateNode(${node.id}, 'related', this.innerText.split(',').map(Number))">${node.related.join(", ")}</td>
-                    <td><button onclick="removeRow(${node.id})">Remove</button></td>
+                    <td contenteditable="true" onblur="updateNode('${node.id}', 'description', this.innerText)">${node.description}</td>
+                    <td contenteditable="true" onblur="updateNode('${node.id}', 'type', this.innerText)">${node.type}</td>
+                    <td contenteditable="true" onblur="updateNode('${node.id}', 'related', this.innerText.split(',').map(String))">${node.related.join(", ")}</td>
+                    <td><button onclick="removeRow('${node.id}')">Remove</button></td>
                 `;
                 tableBody.appendChild(row);
             });
         }
 
         function updateNode(id, field, value) {
+            
             const node = data.find(node => node.id === id);
             if (node) {
                 node[field] = value;
@@ -142,9 +143,9 @@
     </div>
     <script>
         let data = [
-            { id: 1, description: "Node 1", type: "decision", related: [2, 3] },
-            { id: 2, description: "Node 2", type: "explanation", related: [3] },
-            { id: 3, description: "Node 3", type: "decision", related: [] }
+            { id: "d1", description: "Bob read /home/alice/important.txt", type: "decision", related: ["x1"] },
+            { id: "x1", description: "/home/alice/important.txt access rights are 777", type: "explanation", related: ["d2"] },
+            { id: "d2", description: "Alice used 'chmod -R 777 ~/'", type: "decision", related: [] }
         ];
 
         document.getElementById("download-json").addEventListener("click", function (event) {
@@ -184,7 +185,6 @@
         function updateGraph() {
             const nodes = data.map(d => ({ id: d.id, description: d.description, type: d.type }));
             const links = data.flatMap(d => d.related.map(target => ({ source: d.id, target })));
-
             const width = document.querySelector(".graph-container").clientWidth;
             // const height = document.querySelector(".graph-container").clientHeight;
             const height = 200;
@@ -216,6 +216,7 @@
                 .append("path")
                 .attr("d", "M0,0 L0,6 L9,3 z")
                 .attr("fill", "#aaa");
+
 
             const simulation = d3.forceSimulation(nodes)
                 .force("link", d3.forceLink(links).id(d => d.id).distance(100))
@@ -286,7 +287,7 @@
         function addExplanationToData(id) {
             const explanation = explanations.find(exp => exp.id === id);
             if (explanation) {
-                const newNode = { id: data.length + 1, description: explanation.explanation, type: "explanation", related: [] };
+                const newNode = { id: explanation.id, description: explanation.explanation, type: "explanation", related: [] };
                 data.push(newNode);
                 updateTable();
                 updateGraph();
@@ -312,8 +313,9 @@
     </div>
     <script>
         let explanations = [
-            { id: 1, explanation: "Explanation 1" },
-            { id: 2, explanation: "Explanation 2" }
+            { id: "UNIX:chmod", explanation: "Users can change permissions on the file they own using chmod" },
+            { id: "UNIX:flexibility", explanation: "UNIX offer a lot of flexibility to manage personal files" },
+            { id: "UNIX:777", explanation: "777 permission means read, write, and execute for all users" }
         ];
 
         function updateExplanationTable(filteredExplanations = explanations) {
@@ -323,8 +325,8 @@
                 const row = document.createElement("tr");
                 row.innerHTML = `
                     <td>${exp.id}</td>
-                    <td contenteditable="true" onblur="updateExplanation(${exp.id}, this.innerText)">${exp.explanation}</td>
-                    <td><button onclick="addExplanationToData(${exp.id})">Add to Graph</button></td>
+                    <td contenteditable="true" onblur="updateExplanation('${exp.id}', this.innerText)">${exp.explanation}</td>
+                    <td><button onclick="addExplanationToData('${exp.id}')">Add to Graph</button></td>
                 `;
                 tableBody.appendChild(row);
             });

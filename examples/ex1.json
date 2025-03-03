@@ -1,0 +1,5 @@
+[
+    { "id": 1, "description": "Node 1", "type": "decision", "related": [2, 3] },
+    { "id": 2, "description": "Node 2", "type": "explanation", "related": [3] },
+    { "id": 3, "description": "Node 3", "type": "decision", "related": [] }
+]
